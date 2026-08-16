@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TalentFlow AI
 
-## Getting Started
+TalentFlow AI is a Next.js 16 HR hiring platform for managing job postings, candidates, assessments, and secure HR login flows.
 
-First, run the development server:
+## Stack
+- Next.js 16
+- React 19
+- TypeScript
+- Prisma 7
+- PostgreSQL (Neon)
+- NextAuth v5 credentials auth
+- Tailwind CSS + shadcn/ui
+
+## Core features
+- HR login with credentials
+- Dashboard protection for authenticated HR users
+- Password reset flow
+- Job posting and candidate management structure
+- Neon-backed Prisma data layer
+
+## Project structure
+- `src/app/` — App Router pages and route groups
+- `src/app/(auth)/login/page.tsx` — HR login page
+- `src/app/(auth)/forgot-password/page.tsx` — forgot-password flow
+- `src/app/reset-password/page.tsx` — token-based password reset page
+- `src/app/(dashboard)/dashboard/page.tsx` — dashboard landing page
+- `src/auth.ts` — NextAuth config and credentials validation
+- `src/proxy.ts` — Next.js 16 proxy for protected dashboard routes
+- `src/lib/prisma.ts` — Prisma client with adapter setup
+- `prisma/schema.prisma` — Prisma schema
+- `.env` — app and database environment variables
+
+## Environment variables
+Create a `.env` file with values like:
+
+```env
+DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-nextauth-secret"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+RESEND_API_KEY="your-resend-key"
+UPLOADTHING_SECRET="your-uploadthing-secret"
+UPLOADTHING_APP_ID="your-uploadthing-id"
+```
+
+## Local setup
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Validate and sync Prisma schema:
+
+```bash
+npx prisma validate
+npx prisma db push
+```
+
+Run the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000/login
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Default HR login
+The project expects a seeded HR user. A typical seeded account is:
 
-## Learn More
+- Email: `ahmad@gmail.com`
+- Password: `Admin@123`
 
-To learn more about Next.js, take a look at the following resources:
+This account is stored in the `hr_managers` table in PostgreSQL.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Important project conventions
+- Use the Next.js App Router pattern.
+- Use `src/proxy.ts` instead of the deprecated `middleware.ts` file.
+- Prisma v7 does not use the deprecated `datasource url` field in `schema.prisma`.
+- Keep protected dashboard routes under `src/app/(dashboard)`.
+- Use `auth()` and `signOut()` for session checks and logout behavior.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+- If port 3000 is blocked by the local environment, run the app from a normal macOS terminal outside the VS Code sandbox.
+- The app uses Neon Postgres and expects a real `DATABASE_URL` in `.env`.

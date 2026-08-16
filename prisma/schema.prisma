@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model HrManager {
+  id                String               @id @default(uuid())
+  name              String
+  email             String               @unique
+  passwordHash      String
+  createdAt         DateTime             @default(now())
+  jobPostings       JobPosting[]
+  preferences       HrPreference?
+  resetTokens      PasswordResetToken[]
+
+  @@map("hr_managers")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  hrManagerId String
+  hrManager HrManager @relation(fields: [hrManagerId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model JobPosting {
+  id              String              @id @default(uuid())
+  hrManagerId     String
+  hrManager       HrManager           @relation(fields: [hrManagerId], references: [id], onDelete: Cascade)
+  title           String
+  description     String
+  experienceLevel String
+  employmentType  String
+  location        String
+  requiredSkills  String[]
+  status          String              @default("draft")
+  createdAt       DateTime            @default(now())
+  sourcingConfig  JobSourcingConfig?
+  scoringWeights  JobScoringWeights?
+  statusLogs      JobStatusLog[]
+  candidates      Candidate[]
+
+  @@map("job_postings")
+}
+
+model JobSourcingConfig {
+  id              String      @id @default(uuid())
+  jobId           String      @unique
+  job             JobPosting  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  linkedinEnabled Boolean     @default(true)
+  upworkEnabled   Boolean     @default(true)
+  indeedEnabled   Boolean     @default(false)
+
+  @@map("job_sourcing_config")
+}
+
+model JobScoringWeights {
+  id              String      @id @default(uuid())
+  jobId           String      @unique
+  job             JobPosting  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeWeight    Int         @default(30)
+  testWeight      Int         @default(40)
+  interviewWeight Int         @default(30)
+
+  @@map("job_scoring_weights")
+}
+
+model JobStatusLog {
+  id          String      @id @default(uuid())
+  jobId       String
+  job         JobPosting  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  oldStatus   String
+  newStatus   String
+  changedAt   DateTime    @default(now())
+
+  @@map("job_status_logs")
+}
+
+model Candidate {
+  id                String                  @id @default(uuid())
+  jobId             String
+  job               JobPosting              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  fullName          String
+  email             String
+  phone             String?
+  location          String?
+  sourcePlatform    String
+  profileUrl        String?
+  resumeUrl         String?
+  skills            String[]
+  status            String                  @default("sourced")
+  compositeScore    Float?
+  aiSummary         String?
+  createdAt         DateTime                @default(now())
+  scores            CandidateScore?
+  assessmentSubmission AssessmentSubmission?
+  interviewSession  InterviewSession?
+  statusLogs        CandidateStatusLog[]
+
+  @@map("candidates")
+}
+
+model CandidateScore {
+  id              String      @id @default(uuid())
+  candidateId     String      @unique
+  candidate       Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  resumeScore     Float?
+  testScore       Float?
+  interviewScore  Float?
+  compositeScore  Float?
+  updatedAt       DateTime    @updatedAt
+
+  @@map("candidate_scores")
+}
+
+model AssessmentSubmission {
+  id            String      @id @default(uuid())
+  candidateId   String      @unique
+  candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  answers       Json
+  score         Float?
+  submittedAt   DateTime    @default(now())
+
+  @@map("assessment_submissions")
+}
+
+model InterviewSession {
+  id            String      @id @default(uuid())
+  candidateId   String      @unique
+  candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  transcript    Json
+  score         Float?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@map("interview_sessions")
+}
+
+model CandidateStatusLog {
+  id            String      @id @default(uuid())
+  candidateId   String
+  candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId         String
+  action        String
+  takenBy       String
+  takenAt       DateTime    @default(now())
+
+  @@map("candidate_status_logs")
+}
+
+model HrPreference {
+  id              String      @id @default(uuid())
+  hrManagerId     String      @unique
+  hrManager       HrManager   @relation(fields: [hrManagerId], references: [id])
+  defaultWeights  Json        @default("{\"resume\": 30, \"test\": 40, \"interview\": 30}")
+  notifyPipeline  Boolean     @default(true)
+  notifyComplete  Boolean     @default(true)
+
+  @@map("hr_preferences")
+}
