@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, Resolver, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowLeft, Briefcase, Building2, Check, MapPin, Sparkles } from "lucide-react"
+import { ArrowLeft, Briefcase, Building2, Check, MapPin, Rocket, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   createJobSchema,
@@ -28,8 +29,6 @@ import { SkillsTagInput } from "@/components/jobs/skills-tag-input"
 import { SourcingConfigPanel } from "@/components/jobs/sourcing-config"
 import { ScoringWeightsConfigPanel } from "@/components/jobs/scoring-weights-config"
 import { DeleteJobDialog } from "@/components/jobs/delete-job-dialog"
-
-
 
 interface InitialJobData {
   id: string
@@ -60,6 +59,7 @@ interface CreateJobFormProps {
 export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLaunching, setIsLaunching] = useState(false)
   const [serverError, setServerError] = useState("")
   const isEditing = Boolean(jobId && initialJob)
 
@@ -69,10 +69,12 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
     control,
     setValue,
     watch,
+    getValues,
     reset,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<CreateJobSchemaType>({
     resolver: zodResolver(createJobSchema) as unknown as Resolver<CreateJobSchemaType>,
+    mode: "onChange",
     defaultValues: {
       title: initialJob?.title ?? "",
       description: initialJob?.description ?? "",
@@ -113,44 +115,118 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
           interviewWeight: initialJob.scoringWeights?.interviewWeight ?? 30,
         },
       })
+    } else {
+      // Fetch HR Manager's default scoring weights from settings
+      fetch("/api/settings")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.profile?.preferences?.defaultWeights) {
+            const weights = data.profile.preferences.defaultWeights
+            setValue("scoringWeights.resumeWeight", weights.resume ?? 30)
+            setValue("scoringWeights.testWeight", weights.test ?? 40)
+            setValue("scoringWeights.interviewWeight", weights.interview ?? 30)
+          }
+        })
+        .catch(() => {
+          // Fallback to 30/40/30 defaults
+        })
     }
-  }, [initialJob, reset])
+  }, [initialJob, reset, setValue])
 
   const titleValue = watch("title") || ""
   const descriptionValue = watch("description") || ""
 
-  const onSubmit = async (data: CreateJobSchemaType) => {
+  // Helper to save job (draft or update)
+  const saveJobData = async (data: CreateJobSchemaType) => {
+    const endpoint = isEditing ? `/api/jobs/${jobId}` : "/api/jobs"
+    const method = isEditing ? "PATCH" : "POST"
+
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.error || (isEditing ? "Failed to update job posting" : "Failed to create job posting")
+      )
+    }
+
+    return result.job
+  }
+
+  // 1. Save as Draft Handler
+  const onSubmitDraft = async (data: CreateJobSchemaType) => {
     setIsSubmitting(true)
     setServerError("")
 
     try {
-      const endpoint = isEditing ? `/api/jobs/${jobId}` : "/api/jobs"
-      const method = isEditing ? "PATCH" : "POST"
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.error || (isEditing ? "Failed to update job posting" : "Failed to create job posting")
-        )
-      }
-
+      const savedJob = await saveJobData(data)
+      toast.success(isEditing ? "Job updated successfully!" : "Job draft saved successfully!")
       router.push(isEditing ? `/jobs/${jobId}` : "/jobs")
       router.refresh()
     } catch (err: unknown) {
       const errorMessage =
         err instanceof Error ? err.message : "An unexpected error occurred."
       setServerError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // 2. Launch Job Handler (Chunk 5)
+  const onLaunchJob = async () => {
+    setIsLaunching(true)
+    setServerError("")
+
+    try {
+      const data = getValues()
+      const validation = createJobSchema.safeParse(data)
+
+      if (!validation.success) {
+        toast.error("Please fill in all required fields accurately before launching.")
+        setIsLaunching(false)
+        return
+      }
+
+      // Step 1: Save/update job data first
+      const savedJob = await saveJobData(validation.data)
+      const targetJobId = savedJob.id
+
+      // Step 2: Trigger n8n Launch webhook endpoint
+      const launchResponse = await fetch(`/api/jobs/${targetJobId}/launch`, {
+        method: "POST",
+      })
+
+      const launchResult = await launchResponse.json()
+
+      if (launchResult.warning) {
+        toast.warning(launchResult.warning, {
+          description: "Your job posting has been activated in the database.",
+          duration: 6000,
+        })
+      } else {
+        toast.success("Job posted successfully! Automation has started.", {
+          description: "Candidates will begin appearing in your pipeline within the next few minutes.",
+          duration: 6000,
+        })
+      }
+
+      router.push(`/jobs/${targetJobId}`)
+      router.refresh()
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to launch job automation."
+      setServerError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setIsLaunching(false)
     }
   }
 
@@ -163,9 +239,10 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
     errors.scoringWeights?.root?.message ||
     (errors.scoringWeights?.resumeWeight?.message as string | undefined)
 
+  const isBusy = isSubmitting || isLaunching
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmitDraft)} className="space-y-8">
       {serverError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
           {serverError}
@@ -381,7 +458,7 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
         )}
       />
 
-      {/* Candidate Scoring Weights Panel */}
+      {/* Candidate Scoring Weights Panel (Chunk 4) */}
       <Controller
         name="scoringWeights"
         control={control}
@@ -394,9 +471,8 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
         )}
       />
 
-
       {/* Form Action Buttons */}
-      <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-200">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-slate-200">
         <div>
           {isEditing && jobId ? (
             <DeleteJobDialog
@@ -407,20 +483,27 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"
             variant="outline"
             onClick={() => router.push(isEditing ? `/jobs/${jobId}` : "/jobs")}
-            disabled={isSubmitting}
+            disabled={isBusy}
             className="border-slate-300"
           >
             <ArrowLeft className="mr-2 h-4 w-4" /> Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="min-w-[150px]">
+
+          {/* Save as Draft */}
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={isBusy}
+            className="border-slate-300 bg-white hover:bg-slate-50"
+          >
             {isSubmitting ? (
               <span className="flex items-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-transparent" />
                 {isEditing ? "Saving Changes..." : "Saving Draft..."}
               </span>
             ) : (
@@ -431,9 +514,28 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-4 w-4" /> Save as Draft
+                    <Sparkles className="h-4 w-4 text-amber-500" /> Save as Draft
                   </>
                 )}
+              </span>
+            )}
+          </Button>
+
+          {/* Launch Job Button (Chunk 5) */}
+          <Button
+            type="button"
+            onClick={onLaunchJob}
+            disabled={isBusy}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[160px] shadow-sm"
+          >
+            {isLaunching ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Launching...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2 font-semibold">
+                <Rocket className="h-4 w-4" /> Launch Job
               </span>
             )}
           </Button>
@@ -442,4 +544,3 @@ export function CreateJobForm({ initialJob, jobId }: CreateJobFormProps) {
     </form>
   )
 }
-

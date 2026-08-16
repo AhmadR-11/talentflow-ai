@@ -11,6 +11,7 @@ import {
   Sparkles,
   Sliders,
   CheckCircle2,
+  BarChart3,
 } from "lucide-react"
 
 import { auth } from "@/auth"
@@ -19,6 +20,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DeleteJobDialog } from "@/components/jobs/delete-job-dialog"
+import { LaunchJobButton } from "@/components/jobs/launch-job-button"
+import { ScoringWeightsEditor } from "@/components/jobs/scoring-weights"
+import { CandidatePipelineDashboard } from "@/components/jobs/candidate-pipeline-dashboard"
 
 
 export default async function JobDetailPage({
@@ -116,22 +120,23 @@ export default async function JobDetailPage({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <Link href={`/jobs/${job.id}/analytics`}>
+                  <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold text-xs h-9">
+                    <BarChart3 className="h-4 w-4 mr-1.5" /> Analytics & Reports
+                  </Button>
+                </Link>
                 <DeleteJobDialog
                   jobId={job.id}
                   jobTitle={job.title}
                   variant="button"
                 />
                 <Link href={`/jobs/create?jobId=${job.id}`}>
-                  <Button variant="outline" className="border-slate-300">
+                  <Button variant="outline" className="border-slate-300 text-xs h-9">
                     Edit Posting
                   </Button>
                 </Link>
-                <Link href="/jobs/create">
-                  <Button className="shadow-sm">
-                    Create Another Job
-                  </Button>
-                </Link>
+                <LaunchJobButton jobId={job.id} jobStatus={job.status} />
               </div>
             </div>
 
@@ -294,7 +299,11 @@ export default async function JobDetailPage({
             </Card>
           </div>
         </div>
+
+        {/* ───────── Candidate Pipeline Section (Chunk 7) ───────── */}
+        <CandidatePipelineDashboard jobId={job.id} jobTitle={job.title} />
       </div>
     </main>
   )
 }
+

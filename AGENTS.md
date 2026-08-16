@@ -3,19 +3,129 @@
 ## Project purpose
 This repository is a TalentFlow HR platform built with Next.js App Router, Prisma ORM, PostgreSQL (Neon), and NextAuth credentials auth.
 
-The app is centered on HR login, dashboard access, job posting management, candidate flows, and password reset flow.
+The app is centered on HR login, dashboard access, job posting creation, sourcing configuration, candidate scoring weights, job launch automation trigger, jobs list management, candidate pipeline ranking & screening, candidate detail views, candidate status actions, job analytics & reporting dashboards, candidate flows, password reset flow, and HR account settings.
 
 ## Stack
 - Framework: Next.js 16
 - App Router: yes
 - React: 19
 - TypeScript: yes
-- Styling: Tailwind CSS + shadcn/ui components
+- Styling: Tailwind CSS + shadcn/ui components + sonner toasts
+- Data Visualization: Recharts
 - Auth: NextAuth v5 credentials strategy
 - DB: PostgreSQL via Neon
 - ORM: Prisma 7
+- HTTP Client: Axios
 - Email: Resend
 - Runtime: Node.js
+
+## Feature Implementation Progress (Chunks 1 - 11)
+
+### Chunk 1 — Authentication & Account Setup
+- Credentials login validating against `HrManager.email` & `HrManager.passwordHash` using `bcryptjs`.
+- JWT session generated and stored in HTTP-only cookie (`talentflow_session`).
+- Forgot Password request (`/forgot-password`) & token-based reset page (`/reset-password`).
+- Route protection in Next.js 16 via `src/proxy.ts` redirecting unauthenticated requests to `/login`.
+- Session expiry set to 24 hours of inactivity.
+
+### Chunk 2 — Job Posting Creation
+- "Create New Job" form at `/jobs/create` with Zod validation.
+- Fields: Job Title (max 100 chars), Job Description (rich textarea, min 100 chars), Experience Level (`Junior`, `Mid`, `Senior`, `Lead`), Employment Type (`Full-time`, `Part-time`, `Contract`, `Freelance`), Location (text/Remote toggle), Required Skills (multi-tag input).
+- Job posting stored in `job_postings` table with default status `draft`.
+- Full inline validation errors and character limit counters.
+
+### Chunk 3 — Sourcing Configuration
+- Sourcing panel embedded within Create Job form (`SourcingConfigPanel`).
+- Toggles for platforms: **LinkedIn**, **Upwork**, **Indeed**.
+- Requires at least 1 platform selected (shows warning: *"Please select at least one sourcing platform"*).
+- Stored in `job_sourcing_config` table (`linkedin_enabled`, `upwork_enabled`, `indeed_enabled`).
+
+### Chunk 4 — Scoring Weights Configuration
+- Scoring weight sliders panel embedded within Create Job form & editable on Job Details page (`ScoringWeightsConfigPanel` & `ScoringWeightsEditor`).
+- Sliders: Resume Match Weight (default 30%), Skills Test Weight (default 40%), AI Interview Weight (default 30%).
+- Enforces that all three weights always sum to **exactly 100%** with automatic slider rebalancing.
+- Live percentage total badge indicator (`Total: 100% ✅`).
+- Stored in `job_scoring_weights` table (`resume_weight`, `test_weight`, `interview_weight`).
+
+### Chunk 5 — Job Launch & n8n Trigger
+- **"Launch Job"** button in `CreateJobForm`, active when all required fields pass validation.
+- API Route `POST /api/jobs/:id/launch`:
+  - Validates job ownership (`hrManagerId == session.user.id`).
+  - Updates job status to `'active'` in `job_postings` table.
+  - Constructs payload with `job_id`, `job_title`, `job_description`, `experience_level`, `required_skills`, `sourcing`, and `scoring_weights`.
+  - Fires POST request to `process.env.N8N_WEBHOOK_URL` using `axios` (5-second timeout).
+  - Returns `{ success: true, message: "Job launched successfully" }` if webhook succeeds.
+  - If n8n call fails/times out: does NOT rollback DB — returns `{ success: true, warning: "Job saved. Automation could not be started — please retry from job settings." }`.
+- Sonner toasts: displays success toast *"Job posted successfully! Automation has started."* or warning toast with retry option on job detail page.
+
+### Chunk 6 — Jobs List & Management
+- Responsive job postings dashboard at `/jobs` with 2-column grid and filter tabs (`All`, `Active`, `Paused`, `Closed`, `Draft`).
+- API Route `GET /api/jobs`: Returns jobs belonging to authenticated HR Manager with `_count: { candidates: true }`, sorted by `createdAt` desc, supports status filtering.
+- API Route `PATCH /api/jobs/:id/status`:
+  - Accepts `{ action: "pause" | "close" | "reopen" }`.
+  - Executes Prisma `$transaction` updating `status` and logging event in `job_status_logs`.
+  - Reopen action fires n8n webhook (`event: "job_reopened"`).
+- Job Cards: Title, color-coded status badges, creation date formatted with `date-fns`, candidates count, contextual `DropdownMenu` status actions, optimistic UI updates, and Sonner toasts.
+
+### Chunk 7 — Candidate Pipeline Dashboard
+- Candidate Pipeline Dashboard embedded on `/jobs/[jobId]` view.
+- API Route `GET /api/jobs/:jobId/candidates`:
+  - Validates job ownership.
+  - Supports query filters: `minScore`, `maxScore`, `source` (`linkedin`, `upwork`, `indeed`), `stage` (`sourced`, `screened`, `interviewed`, `shortlisted`, `rejected`), `page`, and `limit`.
+  - Joins `candidates` with `candidate_scores`, ordered by `compositeScore` descending.
+  - Returns paginated candidate array and pipeline stage metrics.
+- Candidate Pipeline UI (`CandidatePipelineDashboard`):
+  - Top 4 Metric Tiles: Total Sourced | Screened | Shortlisted | Rejected.
+  - Horizontal Filter Bar: Score Range Inputs (0–10), Source Platform dropdown, Stage dropdown, "Apply Filters", and "Reset".
+  - Candidate Cards: Full Name, Source Badge (LinkedIn: Blue, Upwork: Green, Indeed: Orange), Composite Score (`"9.2 / 10"`) with visual `Progress` bar, Stage Badge, AI Summary text block, and "View Profile" action.
+  - Pagination ("Load More" button & candidate count text), Skeleton loading state, and centered empty state.
+
+### Chunk 8 — Candidate Detail View
+- Full-page candidate profile view at `/jobs/[jobId]/candidates/[candidateId]`.
+- API Route `GET /api/candidates/:candidateId`:
+  - Validates candidate job ownership.
+  - Includes `scores`, `assessmentSubmission`, `interviewSession`, and `job.scoringWeights`.
+- Candidate Detail UI:
+  - Header: Back button (`Back to Pipeline`), Full Name, Stage Badge, Action Buttons (`Shortlist`, `Hold`, `Reject`).
+  - Tab 1 (Profile & Resume): Info grid, normalized skill badges, PDF iframe embed or S3 download button.
+  - Tab 2 (Assessment Test): Prominent overall test score (`"72 / 100"`) & per-question evaluation breakdown table (`Question #`, `Question Text`, `Candidate Answer`, `Score`, `Max Score`, `Justification`).
+  - Tab 3 (AI Interview): Prominent interview score & conversational dialogue thread (AI left gray bubble vs Candidate right blue bubble).
+  - Tab 4 (Scores & Summary): Large Composite Fit Score (`"8.7 / 10"`), 3 weighted progress bars (Resume Match 30%, Skills Test 40%, AI Interview 30%), AI summary card, green Strengths pills, and orange Weaknesses pills.
+
+### Chunk 9 — Shortlist / Reject / Hold Actions
+- Candidate status action system (Shortlist ✅, Reject ❌, Hold ⏸).
+- API Route `POST /api/candidates/:candidateId/action`:
+  - Validates HR Manager job ownership.
+  - Guards against double-action (`400 Bad Request` if candidate is already in requested state).
+  - Maps actions (`shortlist` -> `shortlisted`, `reject` -> `rejected`, `hold` -> `on_hold`).
+  - Prisma `$transaction`: updates `candidate.status` and inserts audit record in `candidate_status_logs`.
+  - Webhook POST to `N8N_WEBHOOK_URL` (`event: "candidate_action"`, candidate data, job data, company name, HR name) for automated email dispatch.
+- Frontend UI (`ActionButtons.tsx`):
+  - Used on both candidate cards (`CandidatePipelineDashboard`) and full detail view (`/jobs/[jobId]/candidates/[candidateId]`).
+  - Reject Confirmation Modal: `shadcn` Dialog (`"Reject this candidate?"`, `"This will send a rejection email to [Candidate Name]. This action cannot be undone."`).
+  - Sonner toasts for success, warning, and error states.
+
+### Chunk 10 — Analytics & Reporting
+- Job Analytics & Reporting Dashboard at `/jobs/[jobId]/analytics`.
+- API Route `GET /api/analytics/:jobId`:
+  - Validates job ownership.
+  - Calculates recruitment funnel counts & stage conversion percentages.
+  - Aggregates score metrics (Average, Highest, Lowest).
+  - Analyzes source platform performance and identifies best performing platform.
+  - Computes skill gap analysis and average time to shortlist.
+- API Route `GET /api/analytics/:jobId/export`:
+  - Streams downloadable candidate dataset CSV file.
+
+### Chunk 11 — HR Manager Settings
+- Account & App Settings screen at `/settings` and `/dashboard/settings`.
+- API Route `GET /api/settings`: Returns HR Manager profile + `hr_preferences`.
+- API Route `PATCH /api/settings/profile`: Updates display name immediately. Checks new email uniqueness, creates 24h verification token in `password_reset_tokens`, and dispatches verification email via Resend.
+- API Route `PATCH /api/settings/password`: Validates current password with `bcrypt.compare()` and updates `passwordHash`.
+- API Route `PATCH /api/settings/preferences`: Enforces 100% total scoring weight validation and upserts `hr_preferences`. Pre-fills Create Job form with default weights.
+- Settings UI:
+  - Tab 1: Profile & Password form with current password validation.
+  - Tab 2: Default Scoring Weight sliders with auto 100% sum rebalancing and live indicator (`Total: 100% ✅`).
+  - Tab 3: Notification preference toggles (`Switch`) for pipeline candidate and batch completion notifications with auto-save.
 
 ## Important project facts
 - Use App Router conventions, not pages router assumptions.
@@ -32,26 +142,32 @@ The app is centered on HR login, dashboard access, job posting management, candi
 - `src/app/(auth)/login/page.tsx` — HR login screen
 - `src/app/(auth)/forgot-password/page.tsx` — reset request page
 - `src/app/reset-password/page.tsx` — set a new password using reset token
-- `src/app/(dashboard)/dashboard/page.tsx` — protected dashboard landing page
+- `src/app/(dashboard)/dashboard/page.tsx` — protected dashboard landing page with metrics
+- `src/app/(dashboard)/jobs/page.tsx` — job postings list & management dashboard
+- `src/app/(dashboard)/jobs/create/page.tsx` — create & edit job posting form page
+- `src/app/(dashboard)/jobs/[jobId]/page.tsx` — detailed job view with candidate pipeline dashboard
+- `src/app/(dashboard)/jobs/[jobId]/analytics/page.tsx` — job analytics & reporting page
+- `src/app/(dashboard)/jobs/[jobId]/candidates/[candidateId]/page.tsx` — candidate detail view
+- `src/app/(dashboard)/settings/page.tsx` — settings page (Profile, Default Weights, Notifications)
+- `src/app/api/settings/route.ts` — Settings GET API
+- `src/app/api/settings/profile/route.ts` — Profile PATCH API
+- `src/app/api/settings/password/route.ts` — Password PATCH API
+- `src/app/api/settings/preferences/route.ts` — Preferences PATCH API
+- `src/app/api/jobs/route.ts` — Jobs GET / POST API
+- `src/app/api/analytics/[jobId]/route.ts` — Analytics GET API
+- `src/app/api/analytics/[jobId]/export/route.ts` — CSV Export GET API
+- `src/app/api/candidates/[candidateId]/route.ts` — Candidate Detail GET API
+- `src/app/api/candidates/[candidateId]/action/route.ts` — Candidate Status Action API
+- `src/app/api/jobs/[jobId]/candidates/route.ts` — Candidate Pipeline GET API
+- `src/app/api/jobs/[jobId]/status/route.ts` — Job status update & audit logging API
+- `src/app/api/jobs/[jobId]/launch/route.ts` — Job Launch & n8n webhook API route
+- `src/components/jobs/` — action buttons, candidate pipeline dashboard, job card, jobs list view, launch button, sourcing panel, scoring weights editor
+- `src/lib/validations/job.ts` — Zod validation schemas for jobs, sourcing config, and scoring weights
 - `src/auth.ts` — NextAuth config and credentials validation
 - `src/proxy.ts` — route protection logic for dashboard routes
 - `src/lib/prisma.ts` — Prisma client initialization with Prisma 7 adapter pattern
 - `prisma/schema.prisma` — Prisma schema / models
-- `.env` — local environment values including `DATABASE_URL` and `NEXTAUTH_SECRET`
-
-## Database and Prisma rules
-- Prisma v7 requires the datasource to omit the `url` field from `schema.prisma`.
-- Connection URL belongs in `prisma.config.ts` and/or in the Prisma client adapter setup.
-- The project is intended for PostgreSQL, specifically Neon-hosted Postgres.
-- Do not assume `localhost` is the database host for production runtime.
-- Treat `DATABASE_URL` as required for all Prisma access.
-
-## Auth rules
-- Credentials login checks `HrManager.email` and `HrManager.passwordHash`.
-- Passwords are verified using `bcryptjs`.
-- Protected pages are under `/dashboard` and should redirect to `/login` if unauthenticated.
-- Session cookie name is `talentflow_session`.
-- Use `auth()` to read the session in server components and route checks.
+- `.env` — local environment values including `DATABASE_URL`, `NEXTAUTH_SECRET`, `N8N_WEBHOOK_URL`
 
 ## Core commands
 - Install deps: `npm install`
@@ -60,50 +176,5 @@ The app is centered on HR login, dashboard access, job posting management, candi
 - Sync Prisma schema to DB: `npx prisma db push`
 - Validate Prisma schema: `npx prisma validate`
 
-## Environment values expected
-- `DATABASE_URL`
-- `NEXTAUTH_URL`
-- `NEXTAUTH_SECRET`
-- `NEXT_PUBLIC_APP_URL`
-- `RESEND_API_KEY`
-- `UPLOADTHING_SECRET`
-- `UPLOADTHING_APP_ID`
-
-## Local runtime note
-If `npm run dev` fails with `EPERM` on port 3000 inside the VS Code sandbox, run it from a normal terminal outside the VS Code sandbox when needed.
-
-This is a runtime environment restriction, not a code bug.
-
-## Important conventions for AI agents
-- Do not rename Prisma models without updating relations and mappings.
-- Do not change auth flow without preserving the `HrManager` email/password behavior.
-- Keep protected routes inside `src/app/(dashboard)`.
-- Preserve the existing App Router grouping structure unless specifically requested.
-- Prefer minimal, targeted edits over broad refactors.
-- If changing Prisma schema, run `npx prisma validate` and `npx prisma db push`.
-- Do not remove or rewrite the project structure unless the task clearly requires it.
-
-## Database model highlights
-- `HrManager` — HR user account, email, passwordHash
-- `PasswordResetToken` — password reset tokens for login recovery
-- `JobPosting` — hiring posts
-- `Candidate` — candidate records
-- `AssessmentSubmission` — candidate assessment answers
-- `InterviewSession` — interview session data
-- `HrPreference` — HR preferences
-
-## Login credentials seed
-The application expects a seeded HR manager account. The usual seeded user is:
-- email: `ahmad@gmail.com`
-- password: `Admin@123`
-
-This is stored in the `hr_managers` table in PostgreSQL.
-
-## Do not do
-- Do not reintroduce the deprecated `src/middleware.ts` convention in Next.js 16.
-- Do not use plain `new PrismaClient()` without the Prisma 7 adapter pattern for direct Postgres access.
-- Do not assume `localhost` is the DB host for real app runtime.
-- Do not remove the route groups and login flows unless asked.
-
 ## Summary
-This app is a working HR hiring system scaffold with protected dashboard routes, credentials-based auth, password reset flow, and Neon-backed Prisma Postgres persistence. Keep the stack and conventions aligned with Next.js 16 and Prisma 7 when making changes.
+This app is a full-featured HR hiring system scaffold with protected dashboard routes, credentials-based auth, password reset flow, job posting creation, automated sourcing configuration, dynamic scoring weights, n8n webhook automation launch, jobs management with audit logging, AI candidate pipeline scoring, candidate detail profiles, candidate action status workflows (Shortlist/Reject/Hold), job analytics & CSV export reporting, HR account & default weights settings, and Neon-backed Prisma Postgres persistence.

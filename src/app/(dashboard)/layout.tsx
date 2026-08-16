@@ -1,8 +1,10 @@
+import { Suspense } from "react"
 import { redirect } from "next/navigation"
 
 import { auth } from "@/auth"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Navbar } from "@/components/layout/navbar"
+import { NavigationProgressBar } from "@/components/layout/navigation-progress-bar"
 
 export default async function DashboardLayout({
   children,
@@ -16,7 +18,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 relative">
+      {/* Top Navigation Progress Bar */}
+      <Suspense fallback={null}>
+        <NavigationProgressBar />
+      </Suspense>
+
       {/* Sidebar Navigation */}
       <Sidebar user={session.user} />
 
