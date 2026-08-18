@@ -3,6 +3,7 @@ import { validateInterviewToken } from "@/lib/candidate-token"
 import { prisma } from "@/lib/prisma"
 import { Resend } from "resend"
 import axios from "axios"
+import { runScoringPipeline } from "@/services/orchestrator.service"
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
@@ -290,6 +291,9 @@ Interview Score: ${interviewScore}/10`
         console.warn("⚠️ Failed to send HR candidate review notification email:", emailErr)
       }
     }
+
+    // Trigger full scoring orchestrator pipeline (Resume Match -> Composite Score -> AI Summary)
+    await runScoringPipeline(candidateId, jobId)
   } catch (error) {
     console.error("❌ Async interview scoring task error:", error)
   }

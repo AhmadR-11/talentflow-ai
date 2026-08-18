@@ -118,22 +118,27 @@ model Candidate {
   scores            CandidateScore?
   assessmentSubmission AssessmentSubmission?
   interviewSession  InterviewSession?
+  embedding         CandidateEmbedding?
   statusLogs        CandidateStatusLog[]
 
   @@map("candidates")
 }
 
 model CandidateScore {
-  id              String      @id @default(uuid())
-  candidateId     String      @unique
-  candidate       Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  resumeScore     Float?
-  testScore       Float?
-  interviewScore  Float?
-  compositeScore  Float?
-  strengths       String[]    @default([])
-  weaknesses      String[]    @default([])
-  updatedAt       DateTime    @updatedAt
+  id                String      @id @default(uuid())
+  candidateId       String      @unique
+  candidate         Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  resumeScore       Float?
+  testScore         Float?
+  interviewScore    Float?
+  compositeScore    Float?
+  tier              String?     @default("unqualified")
+  aiSummary         String?     @map("ai_summary")
+  recommendationTag String?     @map("recommendation_tag")
+  oneLineVerdict    String?     @map("one_line_verdict")
+  strengths         String[]    @default([])
+  weaknesses        String[]    @default([])
+  updatedAt         DateTime    @updatedAt
 
   @@map("candidate_scores")
 }
@@ -185,4 +190,15 @@ model HrPreference {
   notifyComplete  Boolean     @default(true)
 
   @@map("hr_preferences")
+}
+
+model CandidateEmbedding {
+  id            String    @id @default(uuid())
+  candidateId   String    @unique
+  candidate     Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId         String
+  qdrantPointId String
+  createdAt     DateTime  @default(now())
+
+  @@map("candidate_embeddings")
 }
