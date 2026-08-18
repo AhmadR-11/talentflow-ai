@@ -6,19 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:candidate": "npx tsx scripts/seed-test-candidate.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@hookform/resolvers": "^5.7.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@radix-ui/react-radio-group": "^1.4.7",
     "@uploadthing/react": "^7.3.3",
     "axios": "^1.19.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "framer-motion": "^13.1.0",
     "lucide-react": "^1.31.0",
     "next": "16.3.0",
     "next-auth": "^5.0.0-beta.32",

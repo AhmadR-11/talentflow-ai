@@ -45,6 +45,7 @@ model JobPosting {
   createdAt       DateTime            @default(now())
   sourcingConfig  JobSourcingConfig?
   scoringWeights  JobScoringWeights?
+  assessment      JobAssessment?
   statusLogs      JobStatusLog[]
   candidates      Candidate[]
 
@@ -73,6 +74,18 @@ model JobScoringWeights {
   @@map("job_scoring_weights")
 }
 
+model JobAssessment {
+  id               String      @id @default(uuid())
+  jobId            String      @unique
+  job              JobPosting  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  questions        Json
+  totalMarks       Int         @default(100)
+  timeLimitMinutes Int         @default(45)
+  createdAt        DateTime    @default(now())
+
+  @@map("job_assessments")
+}
+
 model JobStatusLog {
   id          String      @id @default(uuid())
   jobId       String
@@ -99,6 +112,8 @@ model Candidate {
   status            String                  @default("sourced")
   compositeScore    Float?
   aiSummary         String?
+  assessmentToken   String?                 @unique
+  interviewToken    String?                 @unique
   createdAt         DateTime                @default(now())
   scores            CandidateScore?
   assessmentSubmission AssessmentSubmission?
@@ -116,6 +131,8 @@ model CandidateScore {
   testScore       Float?
   interviewScore  Float?
   compositeScore  Float?
+  strengths       String[]    @default([])
+  weaknesses      String[]    @default([])
   updatedAt       DateTime    @updatedAt
 
   @@map("candidate_scores")
@@ -127,6 +144,7 @@ model AssessmentSubmission {
   candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   answers       Json
   score         Float?
+  scored        Boolean     @default(false)
   submittedAt   DateTime    @default(now())
 
   @@map("assessment_submissions")
@@ -138,7 +156,9 @@ model InterviewSession {
   candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   transcript    Json
   score         Float?
+  completed     Boolean     @default(false)
   completedAt   DateTime?
+  submittedAt   DateTime?
   createdAt     DateTime    @default(now())
 
   @@map("interview_sessions")

@@ -1,3 +1,3 @@
-export default function CandidateCompletePage() {
-  return null
-}
+import AssessmentCompletePage from "@/app/assessment-complete/page"
+
+export default AssessmentCompletePage

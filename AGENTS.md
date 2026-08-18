@@ -3,23 +3,23 @@
 ## Project purpose
 This repository is a TalentFlow HR platform built with Next.js App Router, Prisma ORM, PostgreSQL (Neon), and NextAuth credentials auth.
 
-The app is centered on HR login, dashboard access, job posting creation, sourcing configuration, candidate scoring weights, job launch automation trigger, jobs list management, candidate pipeline ranking & screening, candidate detail views, candidate status actions, job analytics & reporting dashboards, candidate flows, password reset flow, and HR account settings.
+The app is centered on HR login, dashboard access, job posting creation, sourcing configuration, candidate scoring weights, job launch automation trigger, jobs list management, candidate pipeline ranking & screening, candidate detail views, candidate status actions, job analytics & reporting dashboards, candidate flows, candidate token validation system (magic links), password reset flow, and HR account settings.
 
 ## Stack
 - Framework: Next.js 16
 - App Router: yes
 - React: 19
 - TypeScript: yes
-- Styling: Tailwind CSS + shadcn/ui components + sonner toasts
+- Styling: Tailwind CSS + shadcn/ui components + sonner toasts + Framer Motion
 - Data Visualization: Recharts
-- Auth: NextAuth v5 credentials strategy
+- Auth: NextAuth v5 credentials strategy (for HR) / Magic Link Tokens (for Candidates)
 - DB: PostgreSQL via Neon
 - ORM: Prisma 7
 - HTTP Client: Axios
 - Email: Resend
 - Runtime: Node.js
 
-## Feature Implementation Progress (Chunks 1 - 11)
+## Feature Implementation Progress (Chunks 1 - 11, Chunk C1)
 
 ### Chunk 1 — Authentication & Account Setup
 - Credentials login validating against `HrManager.email` & `HrManager.passwordHash` using `bcryptjs`.
@@ -127,12 +127,25 @@ The app is centered on HR login, dashboard access, job posting creation, sourcin
   - Tab 2: Default Scoring Weight sliders with auto 100% sum rebalancing and live indicator (`Total: 100% ✅`).
   - Tab 3: Notification preference toggles (`Switch`) for pipeline candidate and batch completion notifications with auto-save.
 
+### Chunk C1 — Candidate Token Validation System
+- Database schema: `assessmentToken` (UUID @unique) & `interviewToken` (UUID @unique) added to `Candidate` model.
+- Server-side token validation utility: `src/lib/candidate-token.ts` with `validateAssessmentToken(token)` and `validateInterviewToken(token)`.
+- Redirection rules & target pages:
+  - Invalid / Not Found token -> `/link-expired`
+  - Already submitted assessment -> `/assessment-complete`
+  - Already completed AI interview -> `/interview-complete`
+- Candidate Server Component pages:
+  - `/assessment/[token]/page.tsx`: Validates token server-side, redirects invalid states, renders personalized candidate assessment view.
+  - `/interview/[token]/page.tsx`: Validates token server-side, redirects invalid states, renders personalized candidate interview view.
+- Testing Seed Script: `scripts/seed-test-candidate.ts` + `"seed:candidate": "npx tsx scripts/seed-test-candidate.ts"`. Creates test candidate, prints magic links to console, and sends test email via Resend.
+
 ## Important project facts
 - Use App Router conventions, not pages router assumptions.
 - The app uses `src/proxy.ts` as the Next.js 16 replacement for the older `middleware.ts` pattern.
-- `src/auth.ts` contains the global auth configuration and credentials provider.
+- `src/auth.ts` contains the global auth configuration and credentials provider for HR.
+- Candidates do not log in — unique UUID tokens in URL act as authentication.
 - Auth-protected dashboard routes are under `src/app/(dashboard)`.
-- Public auth routes are under `src/app/(auth)`.
+- Public candidate routes (`/assessment/*`, `/interview/*`, `/link-expired`, etc.) are under `src/app/`.
 - Prisma models live in `prisma/schema.prisma`.
 - Database config is managed in `prisma.config.ts` and the Prisma client in `src/lib/prisma.ts`.
 - The runtime database URL is from Neon and should be stored in `.env`.
@@ -149,19 +162,13 @@ The app is centered on HR login, dashboard access, job posting creation, sourcin
 - `src/app/(dashboard)/jobs/[jobId]/analytics/page.tsx` — job analytics & reporting page
 - `src/app/(dashboard)/jobs/[jobId]/candidates/[candidateId]/page.tsx` — candidate detail view
 - `src/app/(dashboard)/settings/page.tsx` — settings page (Profile, Default Weights, Notifications)
-- `src/app/api/settings/route.ts` — Settings GET API
-- `src/app/api/settings/profile/route.ts` — Profile PATCH API
-- `src/app/api/settings/password/route.ts` — Password PATCH API
-- `src/app/api/settings/preferences/route.ts` — Preferences PATCH API
-- `src/app/api/jobs/route.ts` — Jobs GET / POST API
-- `src/app/api/analytics/[jobId]/route.ts` — Analytics GET API
-- `src/app/api/analytics/[jobId]/export/route.ts` — CSV Export GET API
-- `src/app/api/candidates/[candidateId]/route.ts` — Candidate Detail GET API
-- `src/app/api/candidates/[candidateId]/action/route.ts` — Candidate Status Action API
-- `src/app/api/jobs/[jobId]/candidates/route.ts` — Candidate Pipeline GET API
-- `src/app/api/jobs/[jobId]/status/route.ts` — Job status update & audit logging API
-- `src/app/api/jobs/[jobId]/launch/route.ts` — Job Launch & n8n webhook API route
-- `src/components/jobs/` — action buttons, candidate pipeline dashboard, job card, jobs list view, launch button, sourcing panel, scoring weights editor
+- `src/app/assessment/[token]/page.tsx` — Candidate Assessment page (Chunk C1)
+- `src/app/interview/[token]/page.tsx` — Candidate AI Interview page (Chunk C1)
+- `src/app/link-expired/page.tsx` — Link expired error page (Chunk C1)
+- `src/app/assessment-complete/page.tsx` — Assessment completed page (Chunk C1)
+- `src/app/interview-complete/page.tsx` — Interview completed page (Chunk C1)
+- `src/lib/candidate-token.ts` — Server token validation utility (Chunk C1)
+- `scripts/seed-test-candidate.ts` — Test candidate generator seed script (Chunk C1)
 - `src/lib/validations/job.ts` — Zod validation schemas for jobs, sourcing config, and scoring weights
 - `src/auth.ts` — NextAuth config and credentials validation
 - `src/proxy.ts` — route protection logic for dashboard routes
@@ -174,7 +181,8 @@ The app is centered on HR login, dashboard access, job posting creation, sourcin
 - Start app: `npm run dev`
 - Type-check: `npx tsc --noEmit`
 - Sync Prisma schema to DB: `npx prisma db push`
+- Seed test candidate: `npm run seed:candidate`
 - Validate Prisma schema: `npx prisma validate`
 
 ## Summary
-This app is a full-featured HR hiring system scaffold with protected dashboard routes, credentials-based auth, password reset flow, job posting creation, automated sourcing configuration, dynamic scoring weights, n8n webhook automation launch, jobs management with audit logging, AI candidate pipeline scoring, candidate detail profiles, candidate action status workflows (Shortlist/Reject/Hold), job analytics & CSV export reporting, HR account & default weights settings, and Neon-backed Prisma Postgres persistence.
+This app is a full-featured HR hiring system scaffold with protected dashboard routes, credentials-based auth, password reset flow, job posting creation, automated sourcing configuration, dynamic scoring weights, n8n webhook automation launch, jobs management with audit logging, AI candidate pipeline scoring, candidate detail profiles, candidate action status workflows (Shortlist/Reject/Hold), job analytics & CSV export reporting, HR account & default weights settings, candidate magic-link token validation system, and Neon-backed Prisma Postgres persistence.

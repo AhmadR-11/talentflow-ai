@@ -1,3 +1,3 @@
-export default function CandidateExpiredPage() {
-  return null
-}
+import LinkExpiredPage from "@/app/link-expired/page"
+
+export default LinkExpiredPage

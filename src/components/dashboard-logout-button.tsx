@@ -1,6 +1,7 @@
 "use client"
 
 import { signOut } from "next-auth/react"
+import { LogOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -13,10 +14,26 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
-export function DashboardLogoutButton() {
+interface DashboardLogoutButtonProps {
+  isExpanded?: boolean
+}
+
+export function DashboardLogoutButton({ isExpanded = true }: DashboardLogoutButtonProps) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="outline" className="ml-auto">Log out</Button>} />
+      <DialogTrigger
+        render={
+          <Button
+            variant="outline"
+            className="w-full flex items-center justify-center gap-2 border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors text-xs font-semibold h-9"
+          >
+            <LogOut className="h-4 w-4 shrink-0 text-slate-500 hover:text-red-600" />
+            {isExpanded ? (
+              <span className="whitespace-nowrap truncate">Log out</span>
+            ) : null}
+          </Button>
+        }
+      />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Confirm sign out</DialogTitle>
