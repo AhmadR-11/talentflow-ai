@@ -139,6 +139,25 @@ The app is centered on HR login, dashboard access, job posting creation, sourcin
   - `/interview/[token]/page.tsx`: Validates token server-side, redirects invalid states, renders personalized candidate interview view.
 - Testing Seed Script: `scripts/seed-test-candidate.ts` + `"seed:candidate": "npx tsx scripts/seed-test-candidate.ts"`. Creates test candidate, prints magic links to console, and sends test email via Resend.
 
+### Chunks C2 - C8 — Candidate Assessment & AI Interview Portal
+- **Chunk C2 — Assessment UI**: Candidate skill assessment component with timer, progress indicators, multiple-choice questions, code editor, and text inputs.
+- **Chunk C3 & C4 — Assessment Evaluation & Submission**: Server-side AI grading of test answers, storing submission records in `assessment_submissions`, and updating candidate test score.
+- **Chunk C5 — AI Interview Portal UI**: Interactive voice/text chat screen with AI interviewer, real-time message thread, dynamic question progression, and audio controls.
+- **Chunk C6 — Interview Submission & AI Scoring**: `POST /api/interview/[token]/submit` endpoint saving session, scoring candidate responses using OpenAI, and triggering composite score re-calculation.
+- **Chunk C7 & C8 — Completion & Link Expired Views**: Dedicated candidate confirmation screens (`/assessment-complete`, `/interview-complete`, `/link-expired`).
+
+### Chunks A1 - A4 — AI & Scoring Engine
+- **Chunk A1 — Resume Matcher (`POST /api/scoring/resume-match`)**: Computes cosine similarity vector match score (out of 10) against job skills and description using Qdrant vector database with fallback in-memory similarity matching.
+- **Chunk A2 — Composite Score Calculator (`POST /api/scoring/composite`)**: Normalizes weighted composite fit scores (Resume, Skills Test, AI Interview) based on job scoring weights and assigns candidate qualification tier (`strong`, `qualified`, `marginal`, `unqualified`).
+- **Chunk A3 — AI Summary Generator (`POST /api/scoring/summary`)**: Generates structured, objective HR insights and strengths/weaknesses breakdown using GPT-4o.
+- **Chunk A4 — Scoring Orchestrator (`POST /api/scoring/run`)**: Orchestrates the entire pipeline end-to-end, updates DB models (`candidate_scores`, `candidates.compositeScore`), and provides CLI script `scripts/run-scoring.ts` (`npm run score:candidate`).
+
+### n8n Automation Workflows & Webhooks
+- **Next.js Webhook Handlers (`POST /api/webhooks/n8n`, `GET /api/webhooks/n8n`)**: Resilient API routes for n8n workflows (`candidates_sourced`, `parse_resumes`, `normalize_skills`, `update_candidate_status`, `run_scoring`, and token lookups) with automatic fallback ID resolution.
+- **Workflow W1 — Candidate Sourcing (`n8n-workflows/talentflow-candidate-sourcing.json`)**: Sourcing workflow integrating LinkedIn, Upwork, and Indeed scraping, deduplication, DB insertion, and triggering W2.
+- **Workflow W2 — Resume Parsing & Candidate Invites (`n8n-workflows/talentflow-resume-parsing.json`)**: Resume parsing chain using Affinda API, skill normalization, resume matching, candidate token lookup, and automated assessment invitation email dispatch via Resend API.
+- **Webhook Test CLI (`scripts/test-n8n-webhook.ts`)**: Terminal utility (`npx tsx scripts/test-n8n-webhook.ts`) for testing n8n API routes locally.
+
 ## Important project facts
 - Use App Router conventions, not pages router assumptions.
 - The app uses `src/proxy.ts` as the Next.js 16 replacement for the older `middleware.ts` pattern.
@@ -162,13 +181,18 @@ The app is centered on HR login, dashboard access, job posting creation, sourcin
 - `src/app/(dashboard)/jobs/[jobId]/analytics/page.tsx` — job analytics & reporting page
 - `src/app/(dashboard)/jobs/[jobId]/candidates/[candidateId]/page.tsx` — candidate detail view
 - `src/app/(dashboard)/settings/page.tsx` — settings page (Profile, Default Weights, Notifications)
-- `src/app/assessment/[token]/page.tsx` — Candidate Assessment page (Chunk C1)
-- `src/app/interview/[token]/page.tsx` — Candidate AI Interview page (Chunk C1)
-- `src/app/link-expired/page.tsx` — Link expired error page (Chunk C1)
-- `src/app/assessment-complete/page.tsx` — Assessment completed page (Chunk C1)
-- `src/app/interview-complete/page.tsx` — Interview completed page (Chunk C1)
-- `src/lib/candidate-token.ts` — Server token validation utility (Chunk C1)
-- `scripts/seed-test-candidate.ts` — Test candidate generator seed script (Chunk C1)
+- `src/app/assessment/[token]/page.tsx` — Candidate Assessment page
+- `src/app/interview/[token]/page.tsx` — Candidate AI Interview page
+- `src/app/link-expired/page.tsx` — Link expired error page
+- `src/app/assessment-complete/page.tsx` — Assessment completed page
+- `src/app/interview-complete/page.tsx` — Interview completed page
+- `src/app/api/webhooks/n8n/route.ts` — n8n automation webhook route handler
+- `src/app/api/scoring/run/route.ts` — Candidate scoring pipeline orchestrator endpoint
+- `src/lib/candidate-token.ts` — Server token validation utility
+- `n8n-workflows/talentflow-candidate-sourcing.json` — n8n W1 Candidate Sourcing Workflow
+- `n8n-workflows/talentflow-resume-parsing.json` — n8n W2 Resume Parsing & Email Invitation Workflow
+- `scripts/seed-test-candidate.ts` — Test candidate generator seed script
+- `scripts/test-n8n-webhook.ts` — n8n webhook test script
 - `src/lib/validations/job.ts` — Zod validation schemas for jobs, sourcing config, and scoring weights
 - `src/auth.ts` — NextAuth config and credentials validation
 - `src/proxy.ts` — route protection logic for dashboard routes
@@ -182,7 +206,10 @@ The app is centered on HR login, dashboard access, job posting creation, sourcin
 - Type-check: `npx tsc --noEmit`
 - Sync Prisma schema to DB: `npx prisma db push`
 - Seed test candidate: `npm run seed:candidate`
+- Run candidate scoring CLI: `npm run score:candidate`
+- Test n8n webhook: `npx tsx scripts/test-n8n-webhook.ts`
 - Validate Prisma schema: `npx prisma validate`
 
 ## Summary
-This app is a full-featured HR hiring system scaffold with protected dashboard routes, credentials-based auth, password reset flow, job posting creation, automated sourcing configuration, dynamic scoring weights, n8n webhook automation launch, jobs management with audit logging, AI candidate pipeline scoring, candidate detail profiles, candidate action status workflows (Shortlist/Reject/Hold), job analytics & CSV export reporting, HR account & default weights settings, candidate magic-link token validation system, and Neon-backed Prisma Postgres persistence.
+This app is a full-featured HR hiring system scaffold with protected dashboard routes, credentials-based auth, password reset flow, job posting creation, automated sourcing configuration, dynamic scoring weights, n8n webhook automation launch, jobs management with audit logging, AI candidate pipeline scoring, candidate detail profiles, candidate action status workflows (Shortlist/Reject/Hold), job analytics & CSV export reporting, HR account & default weights settings, candidate magic-link token validation system, automated candidate assessment and AI interview portal, multi-step n8n automation workflows, and Neon-backed Prisma Postgres persistence.
+

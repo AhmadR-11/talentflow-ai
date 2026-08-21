@@ -1,0 +1,979 @@
+{
+  "name": "W1 — TalentFlow AI Candidate Sourcing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-launch",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node_webhook_trigger",
+      "name": "Job Launch Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "job-launch"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true }) }}",
+        "options": {}
+      },
+      "id": "node_respond_immediately",
+      "name": "Respond Immediately",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "var_job_id",
+              "name": "job_id",
+              "value": "={{ $json.job_id }}",
+              "type": "string"
+            },
+            {
+              "id": "var_job_title",
+              "name": "job_title",
+              "value": "={{ $json.job_title }}",
+              "type": "string"
+            },
+            {
+              "id": "var_job_description",
+              "name": "job_description",
+              "value": "={{ $json.job_description }}",
+              "type": "string"
+            },
+            {
+              "id": "var_experience_level",
+              "name": "experience_level",
+              "value": "={{ $json.experience_level }}",
+              "type": "string"
+            },
+            {
+              "id": "var_required_skills",
+              "name": "required_skills",
+              "value": "={{ $json.required_skills }}",
+              "type": "array"
+            },
+            {
+              "id": "var_top_skill",
+              "name": "top_skill",
+              "value": "={{ $json.required_skills[0] ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "var_second_skill",
+              "name": "second_skill",
+              "value": "={{ $json.required_skills[1] ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "var_source_linkedin",
+              "name": "source_linkedin",
+              "value": "={{ $json.sourcing.linkedin }}",
+              "type": "boolean"
+            },
+            {
+              "id": "var_source_upwork",
+              "name": "source_upwork",
+              "value": "={{ $json.sourcing.upwork }}",
+              "type": "boolean"
+            },
+            {
+              "id": "var_source_indeed",
+              "name": "source_indeed",
+              "value": "={{ $json.sourcing.indeed }}",
+              "type": "boolean"
+            },
+            {
+              "id": "var_resume_weight",
+              "name": "resume_weight",
+              "value": "={{ $json.scoring_weights.resume }}",
+              "type": "number"
+            },
+            {
+              "id": "var_test_weight",
+              "name": "test_weight",
+              "value": "={{ $json.scoring_weights.test }}",
+              "type": "number"
+            },
+            {
+              "id": "var_interview_weight",
+              "name": "interview_weight",
+              "value": "={{ $json.scoring_weights.interview }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node_prepare_variables",
+      "name": "Prepare Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_linkedin",
+              "leftValue": "={{ $json.source_linkedin }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_check_linkedin",
+      "name": "LinkedIn Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_upwork",
+              "leftValue": "={{ $json.source_upwork }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_check_upwork",
+      "name": "Upwork Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_indeed",
+              "leftValue": "={{ $json.source_indeed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_check_indeed",
+      "name": "Indeed Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~linkedin-profile-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "searchUrl",
+              "value": "=https://www.linkedin.com/search/results/people/?keywords={{ encodeURIComponent($('Prepare Variables').item.json.job_title + ' ' + $('Prepare Variables').item.json.top_skill) }}"
+            },
+            {
+              "name": "maxResults",
+              "value": "30"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node_start_linkedin_scrape",
+      "name": "Start LinkedIn Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 80],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      },
+      "notes": "SETUP REQUIRED: Create HTTP Header Auth credential named 'Apify API Token' with Name=Authorization Value=Bearer YOUR_APIFY_TOKEN"
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "node_wait_linkedin",
+      "name": "Wait 15s for LinkedIn",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 80],
+      "webhookId": "wait-linkedin"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Start LinkedIn Scrape').item.json.data.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node_check_linkedin_status",
+      "name": "Check LinkedIn Run Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 80],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_linkedin_done",
+              "leftValue": "={{ $json.data.status }}",
+              "rightValue": "SUCCEEDED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_linkedin_succeeded",
+      "name": "LinkedIn SUCCEEDED?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 80]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Check LinkedIn Run Status').item.json.data.defaultDatasetId }}/items?clean=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node_fetch_linkedin_data",
+      "name": "Fetch LinkedIn Dataset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 40],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst jobId = $('Prepare Variables').item.json.job_id;\n\nconst mapped = items.map(item => {\n  const d = item.json;\n  return {\n    full_name: d.name ?? d.fullName ?? d.firstName + ' ' + d.lastName ?? 'Unknown',\n    email: d.email ?? null,\n    phone: d.phone ?? null,\n    profile_url: d.linkedinUrl ?? d.url ?? d.profileUrl ?? '',\n    resume_url: null,\n    skills: d.skills ?? [],\n    source_platform: 'linkedin',\n    job_id: jobId\n  };\n});\n\nreturn [{ json: { linkedin_candidates: mapped, count: mapped.length } }];"
+      },
+      "id": "node_map_linkedin",
+      "name": "Map LinkedIn Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 40]
+    },
+    {
+      "parameters": {
+        "jsCode": "// LinkedIn scrape FAILED — return empty array\nconst jobId = $('Prepare Variables').item.json.job_id;\nconsole.log('LinkedIn scrape failed for job:', jobId);\nreturn [{ json: { linkedin_candidates: [], count: 0, error: 'LinkedIn scrape failed or timed out' } }];"
+      },
+      "id": "node_linkedin_failed",
+      "name": "LinkedIn Failed — Empty Array",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "// LinkedIn disabled — return empty array\nreturn [{ json: { linkedin_candidates: [], count: 0 } }];"
+      },
+      "id": "node_linkedin_disabled",
+      "name": "LinkedIn Disabled",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~upwork-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "searchQuery",
+              "value": "={{ $('Prepare Variables').item.json.top_skill + ' ' + $('Prepare Variables').item.json.second_skill }}"
+            },
+            {
+              "name": "maxResults",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node_start_upwork_scrape",
+      "name": "Start Upwork Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      },
+      "notes": "SETUP REQUIRED: Same Apify API Token credential"
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "node_wait_upwork",
+      "name": "Wait 15s for Upwork",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 280],
+      "webhookId": "wait-upwork"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Start Upwork Scrape').item.json.data.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node_check_upwork_status",
+      "name": "Check Upwork Run Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_upwork_done",
+              "leftValue": "={{ $json.data.status }}",
+              "rightValue": "SUCCEEDED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_upwork_succeeded",
+      "name": "Upwork SUCCEEDED?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 280]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Check Upwork Run Status').item.json.data.defaultDatasetId }}/items?clean=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node_fetch_upwork_data",
+      "name": "Fetch Upwork Dataset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 240],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst jobId = $('Prepare Variables').item.json.job_id;\n\nconst mapped = items.map(item => {\n  const d = item.json;\n  return {\n    full_name: d.name ?? d.fullName ?? 'Unknown',\n    email: d.email ?? null,\n    phone: d.phone ?? null,\n    profile_url: d.profileUrl ?? d.url ?? '',\n    resume_url: null,\n    skills: d.skills ?? d.skillGroups?.flatMap(g => g.skills?.map(s => s.name)) ?? [],\n    hourly_rate: d.hourlyRate ?? d.hourlyCharge ?? null,\n    job_success_score: d.jobSuccessScore ?? null,\n    source_platform: 'upwork',\n    job_id: jobId\n  };\n});\n\nreturn [{ json: { upwork_candidates: mapped, count: mapped.length } }];"
+      },
+      "id": "node_map_upwork",
+      "name": "Map Upwork Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobId = $('Prepare Variables').item.json.job_id;\nconsole.log('Upwork scrape failed for job:', jobId);\nreturn [{ json: { upwork_candidates: [], count: 0, error: 'Upwork scrape failed or timed out' } }];"
+      },
+      "id": "node_upwork_failed",
+      "name": "Upwork Failed — Empty Array",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { upwork_candidates: [], count: 0 } }];"
+      },
+      "id": "node_upwork_disabled",
+      "name": "Upwork Disabled",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~indeed-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "position",
+              "value": "={{ $('Prepare Variables').item.json.job_title }}"
+            },
+            {
+              "name": "location",
+              "value": ""
+            },
+            {
+              "name": "maxItems",
+              "value": "25"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node_start_indeed_scrape",
+      "name": "Start Indeed Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 480],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      },
+      "notes": "SETUP REQUIRED: Same Apify API Token credential"
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "node_wait_indeed",
+      "name": "Wait 15s for Indeed",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1340, 480],
+      "webhookId": "wait-indeed"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Start Indeed Scrape').item.json.data.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node_check_indeed_status",
+      "name": "Check Indeed Run Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 480],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_indeed_done",
+              "leftValue": "={{ $json.data.status }}",
+              "rightValue": "SUCCEEDED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_indeed_succeeded",
+      "name": "Indeed SUCCEEDED?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Check Indeed Run Status').item.json.data.defaultDatasetId }}/items?clean=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node_fetch_indeed_data",
+      "name": "Fetch Indeed Dataset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 440],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "APIFY_CREDENTIAL_ID",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst jobId = $('Prepare Variables').item.json.job_id;\n\nconst mapped = items.map(item => {\n  const d = item.json;\n  return {\n    full_name: d.name ?? d.fullName ?? d.title ?? 'Unknown',\n    email: d.email ?? null,\n    phone: d.phone ?? null,\n    profile_url: d.url ?? d.jobUrl ?? '',\n    resume_url: d.resumeUrl ?? null,\n    skills: d.skills ?? [],\n    source_platform: 'indeed',\n    job_id: jobId\n  };\n});\n\nreturn [{ json: { indeed_candidates: mapped, count: mapped.length } }];"
+      },
+      "id": "node_map_indeed",
+      "name": "Map Indeed Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobId = $('Prepare Variables').item.json.job_id;\nconsole.log('Indeed scrape failed for job:', jobId);\nreturn [{ json: { indeed_candidates: [], count: 0, error: 'Indeed scrape failed or timed out' } }];"
+      },
+      "id": "node_indeed_failed",
+      "name": "Indeed Failed — Empty Array",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { indeed_candidates: [], count: 0 } }];"
+      },
+      "id": "node_indeed_disabled",
+      "name": "Indeed Disabled",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 600]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "node_merge_all",
+      "name": "Merge All Platform Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all candidates from all platforms and deduplicate by email\nconst allItems = $input.all();\n\nlet linkedin = [];\nlet upwork = [];\nlet indeed = [];\n\nfor (const item of allItems) {\n  if (item.json.linkedin_candidates) linkedin = item.json.linkedin_candidates;\n  if (item.json.upwork_candidates) upwork = item.json.upwork_candidates;\n  if (item.json.indeed_candidates) indeed = item.json.indeed_candidates;\n}\n\nconst all = [...linkedin, ...upwork, ...indeed];\n\n// Deduplicate by email (keep first occurrence)\nconst seen = new Set();\nconst deduplicated = all.filter(candidate => {\n  if (!candidate.email) return true; // no email = keep\n  if (seen.has(candidate.email.toLowerCase())) return false;\n  seen.add(candidate.email.toLowerCase());\n  return true;\n});\n\nconsole.log(`Total candidates: ${all.length}, After dedup: ${deduplicated.length}`);\nconsole.log(`LinkedIn: ${linkedin.length}, Upwork: ${upwork.length}, Indeed: ${indeed.length}`);\n\nreturn [{\n  json: {\n    all_candidates: deduplicated,\n    total: deduplicated.length,\n    breakdown: {\n      linkedin: linkedin.length,\n      upwork: upwork.length,\n      indeed: indeed.length\n    }\n  }\n}];"
+      },
+      "id": "node_merge_deduplicate",
+      "name": "Merge & Deduplicate Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.NEXT_APP_URL }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-internal-key",
+              "value": "={{ $vars.INTERNAL_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"candidates_sourced\",\n  \"job_id\": \"{{ $('Prepare Variables').item.json.job_id }}\",\n  \"candidates\": {{ JSON.stringify($json.all_candidates) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node_save_to_db",
+      "name": "Save Candidates to TalentFlow DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 300],
+      "notes": "SETUP REQUIRED: Set NEXT_APP_URL and INTERNAL_API_KEY in n8n Variables (Settings > Variables)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:5678/webhook/parse-resumes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-internal-key",
+              "value": "={{ $vars.INTERNAL_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"parse_resumes\",\n  \"job_id\": \"{{ $('Prepare Variables').item.json.job_id }}\",\n  \"job_title\": \"{{ $('Prepare Variables').item.json.job_title }}\",\n  \"candidates\": {{ JSON.stringify($('Merge & Deduplicate Candidates').item.json.all_candidates.map(c => ({ candidate_id: c.id, full_name: c.full_name, email: c.email, resume_url: c.resume_url, raw_skills: c.skills }))) }}\n}",
+        "options": {}
+      },
+      "id": "node_trigger_w2",
+      "name": "Trigger W2 — Parse Resumes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3100, 300],
+      "notes": "SETUP REQUIRED: This fires the W2 webhook. After building W2, its URL will be your n8n W2 webhook URL (ngrok). Update NEXT_APP_URL var to point to your Next.js ngrok URL."
+    },
+    {
+      "parameters": {
+        "jsCode": "const saveResult = $('Save Candidates to TalentFlow DB').item.json;\nconst dedupeResult = $('Merge & Deduplicate Candidates').item.json;\nconst jobId = $('Prepare Variables').item.json.job_id;\n\nconsole.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');\nconsole.log('✅ W1 — Candidate Sourcing COMPLETE');\nconsole.log('Job ID:', jobId);\nconsole.log('Total candidates found:', dedupeResult.total);\nconsole.log('Breakdown:', JSON.stringify(dedupeResult.breakdown));\nconsole.log('DB Save result:', JSON.stringify(saveResult));\nconsole.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');\n\nreturn [{\n  json: {\n    workflow: 'W1_candidate_sourcing',\n    status: 'complete',\n    job_id: jobId,\n    total_candidates: dedupeResult.total,\n    breakdown: dedupeResult.breakdown,\n    db_saved: saveResult.saved ?? 0,\n    db_skipped: saveResult.skipped ?? 0,\n    w2_triggered: true\n  }\n}];"
+      },
+      "id": "node_log_complete",
+      "name": "Log W1 Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3320, 300]
+    }
+  ],
+  "connections": {
+    "Job Launch Webhook": {
+      "main": [
+        [
+          { "node": "Respond Immediately", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Respond Immediately": {
+      "main": [
+        [
+          { "node": "Prepare Variables", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Variables": {
+      "main": [
+        [
+          { "node": "LinkedIn Enabled?", "type": "main", "index": 0 },
+          { "node": "Upwork Enabled?", "type": "main", "index": 0 },
+          { "node": "Indeed Enabled?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "LinkedIn Enabled?": {
+      "main": [
+        [{ "node": "Start LinkedIn Scrape", "type": "main", "index": 0 }],
+        [{ "node": "LinkedIn Disabled", "type": "main", "index": 0 }]
+      ]
+    },
+    "Upwork Enabled?": {
+      "main": [
+        [{ "node": "Start Upwork Scrape", "type": "main", "index": 0 }],
+        [{ "node": "Upwork Disabled", "type": "main", "index": 0 }]
+      ]
+    },
+    "Indeed Enabled?": {
+      "main": [
+        [{ "node": "Start Indeed Scrape", "type": "main", "index": 0 }],
+        [{ "node": "Indeed Disabled", "type": "main", "index": 0 }]
+      ]
+    },
+    "Start LinkedIn Scrape": {
+      "main": [
+        [{ "node": "Wait 15s for LinkedIn", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait 15s for LinkedIn": {
+      "main": [
+        [{ "node": "Check LinkedIn Run Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check LinkedIn Run Status": {
+      "main": [
+        [{ "node": "LinkedIn SUCCEEDED?", "type": "main", "index": 0 }]
+      ]
+    },
+    "LinkedIn SUCCEEDED?": {
+      "main": [
+        [{ "node": "Fetch LinkedIn Dataset", "type": "main", "index": 0 }],
+        [{ "node": "LinkedIn Failed — Empty Array", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch LinkedIn Dataset": {
+      "main": [
+        [{ "node": "Map LinkedIn Candidates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Map LinkedIn Candidates": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "LinkedIn Failed — Empty Array": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "LinkedIn Disabled": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "Start Upwork Scrape": {
+      "main": [
+        [{ "node": "Wait 15s for Upwork", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait 15s for Upwork": {
+      "main": [
+        [{ "node": "Check Upwork Run Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Upwork Run Status": {
+      "main": [
+        [{ "node": "Upwork SUCCEEDED?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Upwork SUCCEEDED?": {
+      "main": [
+        [{ "node": "Fetch Upwork Dataset", "type": "main", "index": 0 }],
+        [{ "node": "Upwork Failed — Empty Array", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Upwork Dataset": {
+      "main": [
+        [{ "node": "Map Upwork Candidates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Map Upwork Candidates": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 1 }]
+      ]
+    },
+    "Upwork Failed — Empty Array": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 1 }]
+      ]
+    },
+    "Upwork Disabled": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 1 }]
+      ]
+    },
+    "Start Indeed Scrape": {
+      "main": [
+        [{ "node": "Wait 15s for Indeed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait 15s for Indeed": {
+      "main": [
+        [{ "node": "Check Indeed Run Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Indeed Run Status": {
+      "main": [
+        [{ "node": "Indeed SUCCEEDED?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Indeed SUCCEEDED?": {
+      "main": [
+        [{ "node": "Fetch Indeed Dataset", "type": "main", "index": 0 }],
+        [{ "node": "Indeed Failed — Empty Array", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Indeed Dataset": {
+      "main": [
+        [{ "node": "Map Indeed Candidates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Map Indeed Candidates": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 2 }]
+      ]
+    },
+    "Indeed Failed — Empty Array": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 2 }]
+      ]
+    },
+    "Indeed Disabled": {
+      "main": [
+        [{ "node": "Merge All Platform Results", "type": "main", "index": 2 }]
+      ]
+    },
+    "Merge All Platform Results": {
+      "main": [
+        [{ "node": "Merge & Deduplicate Candidates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge & Deduplicate Candidates": {
+      "main": [
+        [{ "node": "Save Candidates to TalentFlow DB", "type": "main", "index": 0 }]
+      ]
+    },
+    "Save Candidates to TalentFlow DB": {
+      "main": [
+        [{ "node": "Trigger W2 — Parse Resumes", "type": "main", "index": 0 }]
+      ]
+    },
+    "Trigger W2 — Parse Resumes": {
+      "main": [
+        [{ "node": "Log W1 Complete", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "TalentFlow AI" },
+    { "name": "Sourcing" }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-08-20T00:00:00.000Z",
+  "versionId": "talentflow-w1-v1"
+}

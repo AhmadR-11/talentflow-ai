@@ -18,11 +18,25 @@ TalentFlow AI is a Next.js 16 HR recruitment & hiring platform for managing job 
 
 ## Core Features Implemented
 
-### 🔑 Candidate Token Validation System (Chunk C1)
+### 🤖 AI Candidate Scoring & Matching Engine (Chunks A1 – A4)
+- **Vector Resume Matcher (`POST /api/scoring/resume-match`)**: Computes cosine similarity vector match score (out of 10) against job skills and description using Qdrant vector database with in-memory similarity fallback.
+- **Composite Score Calculator (`POST /api/scoring/composite`)**: Normalizes candidate scores (Resume, Test, AI Interview) based on job scoring weights and categorizes candidates into qualification tiers (`strong`, `qualified`, `marginal`, `unqualified`).
+- **AI Summary Generator (`POST /api/scoring/summary`)**: Generates structured, objective HR insights and strengths/weaknesses breakdown using GPT-4o.
+- **Scoring Pipeline Orchestrator (`POST /api/scoring/run`)**: End-to-end scoring orchestrator with CLI runner (`npm run score:candidate`).
+
+### 🔄 n8n Automation Workflows & Webhooks
+- **Next.js Webhook API (`POST /api/webhooks/n8n`, `GET /api/webhooks/n8n`)**: Webhook route handling `candidates_sourced`, `parse_resumes`, `normalize_skills`, `update_candidate_status`, `run_scoring`, and token lookups with automatic fallback ID resolution.
+- **W1 Candidate Sourcing Workflow (`n8n-workflows/talentflow-candidate-sourcing.json`)**: Sourcing workflow scraping LinkedIn, Upwork, and Indeed, deduplicating records, saving to Neon Postgres, and triggering W2.
+- **W2 Resume Parsing & Email Workflow (`n8n-workflows/talentflow-resume-parsing.json`)**: Parsing chain utilizing Affinda API, skill normalization, resume matching, and automated email dispatch via Resend API.
+- **n8n Webhook Test CLI (`scripts/test-n8n-webhook.ts`)**: Terminal tool (`npx tsx scripts/test-n8n-webhook.ts`) for testing n8n API routes locally.
+
+### 🎙️ Candidate Assessment & AI Interview Portal (Chunks C1 – C8)
 - **Magic Link Token Access**: Candidates access skills test assessments (`/assessment/[token]`) and interactive AI interviews (`/interview/[token]`) using unique UUID tokens generated in the database. No password, session cookie, or login required.
 - **Server Validation Utility (`src/lib/candidate-token.ts`)**:
   - `validateAssessmentToken(token)`: Queries candidate, checks if assessment has already been submitted, and returns candidate/job metadata or error reason.
   - `validateInterviewToken(token)`: Queries candidate, checks if AI interview session is completed, and returns candidate/job metadata or error reason.
+- **Candidate Skill Assessment Test**: Timer, multiple-choice questions, code editor, text inputs, and server-side AI grading (`POST /api/assessment/[token]/submit`).
+- **Interactive AI Interview Chat**: Live conversational dialogue thread with AI interviewer, real-time message history, dynamic question progression, and audio controls.
 - **Usage-Based Token Locking & Redirection**:
   - Invalid / Not Found Token -> Redirects to `/link-expired`
   - Already Submitted Assessment -> Redirects to `/assessment-complete`

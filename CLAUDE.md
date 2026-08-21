@@ -33,12 +33,19 @@ Claude should operate as a project-aware coding assistant for this TalentFlow AI
 10. **Chunk 10 — Analytics & Reporting**: Job Analytics & Reporting Dashboard at `/jobs/[jobId]/analytics`. `GET /api/analytics/:jobId` endpoint computes recruitment funnel metrics, score aggregations, source platform performance with best channel detection, skill gap analysis, and avg time to shortlist. `GET /api/analytics/:jobId/export` streams downloadable candidate CSV files. UI features Recharts visualizations, metric cards, skill gap table, Skeleton states, and CSV export action.
 11. **Chunk 11 — Settings**: Account & App Settings screen at `/settings` and `/dashboard/settings`. `GET /api/settings` returns HR Manager profile + `hr_preferences`. `PATCH /api/settings/profile` handles display name updates and email verification workflow via Resend. `PATCH /api/settings/password` handles bcrypt password validation and password updates. `PATCH /api/settings/preferences` validates 100% total weight sums and upserts `hr_preferences` (pre-filling new job forms). UI features 3 tabs (Profile & Password, Default Scoring Weights, Notification Toggles).
 12. **Chunk C1 — Candidate Token Validation System**: Magic link validation (`/assessment/[token]` & `/interview/[token]`) via `src/lib/candidate-token.ts`, status redirection (`/link-expired`, `/assessment-complete`, `/interview-complete`), personalized candidate pages, and `scripts/seed-test-candidate.ts` testing seed script.
+13. **Chunks C2 – C8 — Assessment & AI Interview Portal**: Skill assessment test component with timer, multiple-choice questions, code editor, AI grading submission, interactive AI interview chat with real-time audio controls, dynamic question progression, and completion views.
+14. **Chunks A1 – A4 — AI & Scoring Engine**: Vector similarity resume matcher (`POST /api/scoring/resume-match`), composite score calculator (`POST /api/scoring/composite`), GPT-4o candidate HR summary generator (`POST /api/scoring/summary`), and pipeline orchestrator (`POST /api/scoring/run` & `npm run score:candidate`).
+15. **n8n Automation Workflows & Webhooks**: Resilient webhook route (`POST /api/webhooks/n8n`), candidate token lookup route (`GET /api/webhooks/n8n`), W1 Sourcing workflow (`n8n-workflows/talentflow-candidate-sourcing.json`), W2 Resume Parsing & Email Invitation workflow (`n8n-workflows/talentflow-resume-parsing.json`), and test script (`scripts/test-n8n-webhook.ts`).
 
 ## Quick references
 - Candidate Token Utility: `src/lib/candidate-token.ts`
 - Candidate Seed Script: `scripts/seed-test-candidate.ts`
+- Webhook Test Script: `scripts/test-n8n-webhook.ts`
+- Scoring Orchestrator Script: `scripts/run-scoring.ts`
 - Assessment Route: `src/app/assessment/[token]/page.tsx`
 - Interview Route: `src/app/interview/[token]/page.tsx`
+- Webhook API Route: `src/app/api/webhooks/n8n/route.ts`
+- Scoring Run Route: `src/app/api/scoring/run/route.ts`
 - Settings page: `src/app/(dashboard)/settings/page.tsx`
 - Analytics page: `src/app/(dashboard)/jobs/[jobId]/analytics/page.tsx`
 - Candidate detail page: `src/app/(dashboard)/jobs/[jobId]/candidates/[candidateId]/page.tsx`

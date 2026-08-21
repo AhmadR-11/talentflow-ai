@@ -1,0 +1,653 @@
+{
+  "name": "W2 — TalentFlow AI Resume Parsing Chain",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parse-resumes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node_w2_webhook",
+      "name": "Parse Resumes Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "webhookId": "parse-resumes"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"received\": true }",
+        "options": {}
+      },
+      "id": "node_w2_respond",
+      "name": "Respond Immediately",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "var_job_id",
+              "name": "job_id",
+              "value": "={{ $json.job_id }}",
+              "type": "string"
+            },
+            {
+              "id": "var_job_title",
+              "name": "job_title",
+              "value": "={{ $json.job_title }}",
+              "type": "string"
+            },
+            {
+              "id": "var_candidates",
+              "name": "candidates",
+              "value": "={{ $json.candidates }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node_w2_set_vars",
+      "name": "Extract Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "candidates",
+        "options": {}
+      },
+      "id": "node_w2_split",
+      "name": "Split Into Individual Candidates",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "var_cand_id",
+              "name": "candidate_id",
+              "value": "={{ $json.candidate_id }}",
+              "type": "string"
+            },
+            {
+              "id": "var_cand_name",
+              "name": "full_name",
+              "value": "={{ $json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "var_cand_email",
+              "name": "email",
+              "value": "={{ $json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "var_cand_resume",
+              "name": "resume_url",
+              "value": "={{ $json.resume_url }}",
+              "type": "string"
+            },
+            {
+              "id": "var_cand_skills",
+              "name": "raw_skills",
+              "value": "={{ $json.raw_skills }}",
+              "type": "array"
+            },
+            {
+              "id": "var_job_id2",
+              "name": "job_id",
+              "value": "={{ $('Extract Variables').item.json.job_id }}",
+              "type": "string"
+            },
+            {
+              "id": "var_job_title2",
+              "name": "job_title",
+              "value": "={{ $('Extract Variables').item.json.job_title }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node_w2_candidate_vars",
+      "name": "Set Candidate Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond_has_resume",
+              "leftValue": "={{ $json.resume_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_w2_check_resume",
+      "name": "Has Resume URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.affinda.com/v3/documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_AFFINDA_API_KEY_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.resume_url }}\",\n  \"collection\": {\n    \"identifier\": \"resumes\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node_w2_affinda_parse",
+      "name": "Parse Resume with Affinda",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 280],
+      "notes": "SETUP REQUIRED: Replace YOUR_AFFINDA_API_KEY_HERE with your actual Affinda API key from affinda.com"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Affinda parse successful — extract skills and experience\nconst affindaData = $input.item.json;\nconst data = affindaData.data ?? affindaData;\n\n// Extract skills from Affinda response\nlet parsedSkills = [];\nif (data.skills && Array.isArray(data.skills)) {\n  parsedSkills = data.skills.map(s => s.name ?? s.skill ?? s).filter(Boolean);\n} else if (data.data?.skills) {\n  parsedSkills = data.data.skills.map(s => s.name ?? s.skill ?? s).filter(Boolean);\n}\n\n// Extract work experience\nlet workExperience = [];\nconst workHist = data.workExperience ?? data.data?.workExperience ?? [];\nworkExperience = workHist.map(w => ({\n  company: w.organization?.name ?? w.company ?? '',\n  role: w.jobTitle?.name ?? w.role ?? '',\n  duration: w.dates?.monthsInPosition ?? 0\n}));\n\n// Extract total experience years\nconst totalExp = data.totalYearsExperience ?? data.data?.totalYearsExperience ?? 0;\n\n// Pass through candidate info + parsed data\nreturn [{\n  json: {\n    candidate_id: $('Set Candidate Variables').item.json.candidate_id,\n    full_name: $('Set Candidate Variables').item.json.full_name,\n    email: $('Set Candidate Variables').item.json.email,\n    job_id: $('Set Candidate Variables').item.json.job_id,\n    job_title: $('Set Candidate Variables').item.json.job_title,\n    raw_skills: $('Set Candidate Variables').item.json.raw_skills ?? [],\n    parsed_skills: parsedSkills,\n    work_experience: workExperience,\n    total_experience_years: totalExp,\n    resume_parsed: true\n  }\n}];"
+      },
+      "id": "node_w2_extract_affinda",
+      "name": "Extract Parsed Resume Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No resume URL — use raw_skills as fallback\nconst candidateVars = $('Set Candidate Variables').item.json;\n\nconsole.log('No resume URL for candidate:', candidateVars.candidate_id, '— using raw skills as fallback');\n\nreturn [{\n  json: {\n    candidate_id: candidateVars.candidate_id,\n    full_name: candidateVars.full_name,\n    email: candidateVars.email,\n    job_id: candidateVars.job_id,\n    job_title: candidateVars.job_title,\n    raw_skills: candidateVars.raw_skills ?? [],\n    parsed_skills: [],\n    work_experience: [],\n    total_experience_years: 0,\n    resume_parsed: false\n  }\n}];"
+      },
+      "id": "node_w2_no_resume_fallback",
+      "name": "No Resume — Use Raw Skills",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 520]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "node_w2_merge_resume_paths",
+      "name": "Merge Resume Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2000, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge raw_skills + parsed_skills and deduplicate\nconst d = $input.item.json;\n\nconst raw = Array.isArray(d.raw_skills) ? d.raw_skills : [];\nconst parsed = Array.isArray(d.parsed_skills) ? d.parsed_skills : [];\n\n// Combine and deduplicate (case insensitive)\nconst combined = [...raw, ...parsed];\nconst seen = new Set();\nconst merged = combined.filter(skill => {\n  if (!skill) return false;\n  const key = String(skill).toLowerCase().trim();\n  if (seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});\n\nconsole.log(`Candidate ${d.candidate_id} — merged skills: ${merged.length} (raw: ${raw.length}, parsed: ${parsed.length})`);\n\nreturn [{\n  json: {\n    ...d,\n    merged_skills: merged\n  }\n}];"
+      },
+      "id": "node_w2_merge_skills",
+      "name": "Merge Raw + Parsed Skills",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-internal-key",
+              "value": "talentflow-internal-2025"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"normalize_skills\",\n  \"candidate_id\": \"{{ $json.candidate_id }}\",\n  \"raw_skills\": {{ JSON.stringify($json.merged_skills) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node_w2_normalize",
+      "name": "Normalize Skills via Next.js",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2440, 400],
+      "notes": "SETUP REQUIRED: If using ngrok, replace host.docker.internal:3000 with your ngrok URL"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through candidate data with normalized skills from Next.js response\nconst normalizeResponse = $input.item.json;\nconst prevData = $('Merge Raw + Parsed Skills').item.json;\n\nreturn [{\n  json: {\n    candidate_id: prevData.candidate_id,\n    full_name: prevData.full_name,\n    email: prevData.email,\n    job_id: prevData.job_id,\n    job_title: prevData.job_title,\n    merged_skills: prevData.merged_skills,\n    normalized_skills: normalizeResponse.normalized ?? prevData.merged_skills,\n    total_experience_years: prevData.total_experience_years ?? 0\n  }\n}];"
+      },
+      "id": "node_w2_after_normalize",
+      "name": "Prepare for Scoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/scoring/resume-match",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-internal-key",
+              "value": "talentflow-internal-2025"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"candidateId\": \"{{ $json.candidate_id }}\",\n  \"jobId\": \"{{ $json.job_id }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        }
+      },
+      "id": "node_w2_resume_score",
+      "name": "Trigger Resume Match Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 400],
+      "notes": "SETUP REQUIRED: Replace host.docker.internal:3000 with ngrok URL if needed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle resume scoring result — continue even if scoring failed\nconst scoreResult = $input.item.json;\nconst prevData = $('Prepare for Scoring').item.json;\n\nconst resumeScore = scoreResult.resumeScore ?? null;\n\nif (resumeScore !== null) {\n  console.log(`✅ Resume score for ${prevData.candidate_id}: ${resumeScore}/10`);\n} else {\n  console.warn(`⚠️ Resume scoring failed for ${prevData.candidate_id} — continuing anyway`);\n}\n\nreturn [{\n  json: {\n    candidate_id: prevData.candidate_id,\n    full_name: prevData.full_name,\n    email: prevData.email,\n    job_id: prevData.job_id,\n    job_title: prevData.job_title,\n    normalized_skills: prevData.normalized_skills,\n    resume_score: resumeScore,\n    scoring_success: resumeScore !== null\n  }\n}];"
+      },
+      "id": "node_w2_score_result",
+      "name": "Handle Score Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3100, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://host.docker.internal:3000/api/webhooks/n8n?candidateId={{ $json.candidate_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-internal-key",
+              "value": "talentflow-internal-2025"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node_w2_fetch_token",
+      "name": "Fetch Assessment Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3320, 400],
+      "notes": "SETUP REQUIRED: Replace host.docker.internal:3000 with ngrok URL if needed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare email data combining score result + token\nconst tokenData = $input.item.json;\nconst scoreData = $('Handle Score Result').item.json;\nconst candObj = tokenData.candidate ?? tokenData;\n\nconst assessmentToken = candObj.assessmentToken ?? null;\nconst candidateName = candObj.fullName ?? scoreData.full_name ?? 'Candidate';\nconst firstName = candidateName.split(' ')[0];\nlet email = candObj.email || scoreData.email || 'ahmadraza792003@gmail.com';\n\n// Resend test domain (onboarding@resend.dev) restricts sending to @example.com / @placeholder.com\nif (!email || email.includes('@example.com') || email.includes('@placeholder.com')) {\n  email = 'ahmadraza792003@gmail.com';\n}\n\nconst jobTitle = scoreData.job_title || 'Software Developer';\nconst assessmentLink = candObj.assessmentUrl ?? `http://localhost:3000/assessment/${assessmentToken}`;\n\nif (!assessmentToken) {\n  console.error('❌ No assessment token found for candidate:', scoreData.candidate_id);\n}\n\nreturn [{\n  json: {\n    candidate_id: scoreData.candidate_id,\n    full_name: candidateName,\n    first_name: firstName,\n    email: email,\n    job_id: scoreData.job_id,\n    job_title: jobTitle,\n    assessment_token: assessmentToken,\n    assessment_link: assessmentLink,\n    resume_score: scoreData.resume_score,\n    ready_to_email: assessmentToken !== null && email !== null\n  }\n}];"
+      },
+      "id": "node_w2_prepare_email",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3540, 400],
+      "notes": "SETUP REQUIRED: Change localhost:3000 in assessment_link to your ngrok or production URL"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_ready_email",
+              "leftValue": "={{ $json.ready_to_email }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node_w2_check_email_ready",
+      "name": "Token Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3760, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.RESEND_API_KEY ?? 'YOUR_RESEND_API_KEY_HERE' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"TalentFlow AI <onboarding@resend.dev>\",\n  \"to\": [\"{{ $json.email }}\"],\n  \"subject\": \"Skills Assessment — {{ $json.job_title }}\",\n  \"html\": \"<div style='font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;'><div style='margin-bottom: 32px;'><h1 style='font-size: 20px; font-weight: 600; color: #000; margin: 0;'>TalentFlow AI</h1></div><h2 style='font-size: 24px; font-weight: 600; color: #000; margin-bottom: 16px;'>Hi {{ $json.first_name }},</h2><p style='font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 16px;'>Thank you for your interest in the <strong>{{ $json.job_title }}</strong> position. After reviewing your profile, we would like to invite you to complete a skills assessment.</p><p style='font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 32px;'>The assessment takes approximately <strong>45 minutes</strong> and includes multiple choice questions, short answers, and a practical task. Please complete it within <strong>48 hours</strong>.</p><div style='text-align: center; margin-bottom: 32px;'><a href='{{ $json.assessment_link }}' style='display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 500;'>Start Assessment</a></div><p style='font-size: 13px; color: #888; line-height: 1.6;'>This link is unique to you — please do not share it. If you have any questions, reply to this email.</p><hr style='border: none; border-top: 1px solid #eee; margin: 32px 0;'/><p style='font-size: 12px; color: #aaa;'>TalentFlow AI — Intelligent Recruitment</p></div>\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node_w2_send_email",
+      "name": "Send Assessment Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3980, 280],
+      "notes": "SETUP REQUIRED: Replace YOUR_RESEND_API_KEY_HERE with your actual Resend API key from resend.com. Also update the 'from' email to your verified domain."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log email sent successfully\nconst emailResult = $input.item.json;\nconst emailData = $('Prepare Email Data').item.json;\n\nconsole.log(`✅ Assessment email sent to: ${emailData.email}`);\nconsole.log(`   Candidate: ${emailData.full_name}`);\nconsole.log(`   Job: ${emailData.job_title}`);\nconsole.log(`   Email ID: ${emailResult.id ?? 'unknown'}`);\n\nreturn [{\n  json: {\n    status: 'email_sent',\n    candidate_id: emailData.candidate_id,\n    email: emailData.email,\n    email_id: emailResult.id ?? null\n  }\n}];"
+      },
+      "id": "node_w2_log_email_sent",
+      "name": "Log Email Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4200, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Token not found — log error and skip email\nconst emailData = $('Prepare Email Data').item.json;\n\nconsole.error(`❌ Cannot send email — no assessment token for candidate: ${emailData.candidate_id}`);\nconsole.error(`   Name: ${emailData.full_name}, Email: ${emailData.email}`);\n\nreturn [{\n  json: {\n    status: 'email_skipped',\n    candidate_id: emailData.candidate_id,\n    reason: 'no_assessment_token'\n  }\n}];"
+      },
+      "id": "node_w2_log_skip",
+      "name": "Log Email Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3980, 520]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "node_w2_merge_final",
+      "name": "Merge Email Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [4420, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final log for this candidate\nconst result = $input.item.json;\n\nconsole.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');\nconsole.log('✅ W2 — Candidate Processing Complete');\nconsole.log('Candidate ID:', result.candidate_id ?? 'unknown');\nconsole.log('Status:', result.status ?? 'unknown');\nconsole.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');\n\nreturn [{ json: result }];"
+      },
+      "id": "node_w2_log_complete",
+      "name": "Log W2 Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4640, 400]
+    }
+  ],
+  "connections": {
+    "Parse Resumes Webhook": {
+      "main": [
+        [
+          { "node": "Respond Immediately", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Respond Immediately": {
+      "main": [
+        [
+          { "node": "Extract Variables", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extract Variables": {
+      "main": [
+        [
+          { "node": "Split Into Individual Candidates", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Split Into Individual Candidates": {
+      "main": [
+        [
+          { "node": "Set Candidate Variables", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Set Candidate Variables": {
+      "main": [
+        [
+          { "node": "Has Resume URL?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Has Resume URL?": {
+      "main": [
+        [
+          { "node": "Parse Resume with Affinda", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "No Resume — Use Raw Skills", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Resume with Affinda": {
+      "main": [
+        [
+          { "node": "Extract Parsed Resume Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extract Parsed Resume Data": {
+      "main": [
+        [
+          { "node": "Merge Resume Paths", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "No Resume — Use Raw Skills": {
+      "main": [
+        [
+          { "node": "Merge Resume Paths", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Merge Resume Paths": {
+      "main": [
+        [
+          { "node": "Merge Raw + Parsed Skills", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Merge Raw + Parsed Skills": {
+      "main": [
+        [
+          { "node": "Normalize Skills via Next.js", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Normalize Skills via Next.js": {
+      "main": [
+        [
+          { "node": "Prepare for Scoring", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare for Scoring": {
+      "main": [
+        [
+          { "node": "Trigger Resume Match Scoring", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Trigger Resume Match Scoring": {
+      "main": [
+        [
+          { "node": "Handle Score Result", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Handle Score Result": {
+      "main": [
+        [
+          { "node": "Fetch Assessment Token", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Assessment Token": {
+      "main": [
+        [
+          { "node": "Prepare Email Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          { "node": "Token Found?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Token Found?": {
+      "main": [
+        [
+          { "node": "Send Assessment Email", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Log Email Skipped", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Assessment Email": {
+      "main": [
+        [
+          { "node": "Log Email Sent", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Email Sent": {
+      "main": [
+        [
+          { "node": "Merge Email Results", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Email Skipped": {
+      "main": [
+        [
+          { "node": "Merge Email Results", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Merge Email Results": {
+      "main": [
+        [
+          { "node": "Log W2 Complete", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "TalentFlow AI" },
+    { "name": "Parsing" }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-08-20T00:00:00.000Z",
+  "versionId": "talentflow-w2-v1"
+}
