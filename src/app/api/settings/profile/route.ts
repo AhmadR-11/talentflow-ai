@@ -4,6 +4,7 @@ import { Resend } from "resend"
 
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { validateAuthenticHrEmail } from "@/lib/email-validator"
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
@@ -31,6 +32,15 @@ export async function PATCH(request: Request) {
     const isEmailChanged = newEmail !== currentHr.email.toLowerCase()
 
     if (isEmailChanged) {
+      // Validate that the new email address is authentic, real, and has valid MX records
+      const emailValidation = await validateAuthenticHrEmail(newEmail)
+      if (!emailValidation.isValid) {
+        return NextResponse.json(
+          { error: emailValidation.reason || "Invalid HR email address." },
+          { status: 400 }
+        )
+      }
+
       // Check if new email is already registered by another account
       const existingUser = await prisma.hrManager.findUnique({
         where: { email: newEmail },

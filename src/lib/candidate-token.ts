@@ -28,6 +28,24 @@ export interface TokenValidationFailure {
 export type TokenValidationResult = TokenValidationSuccess | TokenValidationFailure
 
 /**
+ * Retries a database query if Neon serverless closes idle connection sockets.
+ */
+async function withDbRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  let attempt = 0
+  while (attempt < retries) {
+    try {
+      return await fn()
+    } catch (err: any) {
+      attempt++
+      // If error is connection closed / serverless idle socket drop (P1017 / ConnectionClosed), retry once
+      if (attempt >= retries) throw err
+      await new Promise((r) => setTimeout(r, 150 * attempt))
+    }
+  }
+  return await fn()
+}
+
+/**
  * Validates a candidate's magic assessment token.
  * Returns valid state, candidate data, and job title or failure reason (not_found | already_submitted).
  */
@@ -37,13 +55,15 @@ export async function validateAssessmentToken(token: string): Promise<TokenValid
   }
 
   try {
-    const candidate = await prisma.candidate.findUnique({
-      where: { assessmentToken: token },
-      include: {
-        job: true,
-        assessmentSubmission: true,
-      },
-    })
+    const candidate = await withDbRetry(() =>
+      prisma.candidate.findUnique({
+        where: { assessmentToken: token },
+        include: {
+          job: true,
+          assessmentSubmission: true,
+        },
+      })
+    )
 
     if (!candidate || !candidate.job) {
       return { valid: false, reason: "not_found" }
@@ -84,13 +104,15 @@ export async function validateInterviewToken(token: string): Promise<TokenValida
   }
 
   try {
-    const candidate = await prisma.candidate.findUnique({
-      where: { interviewToken: token },
-      include: {
-        job: true,
-        interviewSession: true,
-      },
-    })
+    const candidate = await withDbRetry(() =>
+      prisma.candidate.findUnique({
+        where: { interviewToken: token },
+        include: {
+          job: true,
+          interviewSession: true,
+        },
+      })
+    )
 
     if (!candidate || !candidate.job) {
       return { valid: false, reason: "not_found" }

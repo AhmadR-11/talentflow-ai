@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createResetTokenExpiry, generateSecureToken } from "@/lib/tokens"
 import { sendPasswordResetEmail } from "@/lib/resend"
+import { validateAuthenticHrEmail } from "@/lib/email-validator"
 
 export async function POST(request: Request) {
   const { email } = await request.json().catch(() => ({ email: "" }))
@@ -10,6 +11,15 @@ export async function POST(request: Request) {
 
   if (!normalizedEmail) {
     return NextResponse.json({ error: "Email is required." }, { status: 400 })
+  }
+
+  // Validate that the email address format and domain are authentic
+  const emailValidation = await validateAuthenticHrEmail(normalizedEmail)
+  if (!emailValidation.isValid) {
+    return NextResponse.json(
+      { error: emailValidation.reason || "Please enter a valid, authentic email address." },
+      { status: 400 }
+    )
   }
 
   const hrManager = await prisma.hrManager.findUnique({
